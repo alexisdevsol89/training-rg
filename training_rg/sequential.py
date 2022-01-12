@@ -13,12 +13,23 @@ from shutil import copy2
 from tabulate import tabulate
 
 from training_rg.classifiers import WeekDay, KeyResp
-from training_rg.constants import WEEKDAYS
+from training_rg.constants import WEEKDAYS, SESSIONS_COUNT, SESSIONS_DAYS_OFF, SESSIONS_STEP
 
 from training_rg.logger import logger
 
 
-def sequence(dir_routines, count=30, first_day=WeekDay.MONDAY.value, step=0):
+def sequence(dir_routines, count=30, first_day=WeekDay.MONDAY.value, days_off=1, step=0):
+    """
+    La idea es dada una lista, ordenada, de directorios con rutinas,
+    generar cierta cantidad de sesiones, de entrenamiento, con determinados
+    dias de descanso y a ciertos intervalos
+    :param dir_routines: Lista de diretorios con las rutinas. El orden importa.
+    :param count: Cantidad de sesiones
+    :param first_day: Primer dia de la semana a considerar
+    :param days_off: Dias de descanso
+    :param step: Intervalos de entrenamiento
+    :return: list de sesiones
+    """
     if step < 1:
         step = len(dir_routines)
 
@@ -29,14 +40,11 @@ def sequence(dir_routines, count=30, first_day=WeekDay.MONDAY.value, step=0):
         dir_routines_files.append(_walk(root))
 
     r = Random()
-    full_path = r.choice(dir_routines_files[0])
-    head, tail = os.path.split(full_path)
-    sessions.append({'day': WEEKDAYS[first_day], 'full_path': full_path, 'name': tail})
 
-    j = 1
-    for sess_i in range(1, count):
-        if sess_i % step:
-            day = WEEKDAYS[(first_day + sess_i) % len(WEEKDAYS)]
+    j = 0
+    for b in range(0, count, step + days_off):
+        for day_i in range(b, b + step):
+            day = WEEKDAYS[(first_day + day_i) % len(WEEKDAYS)]
             full_path = r.choice(dir_routines_files[j % len(dir_routines_files)])
             head, tail = os.path.split(full_path)
             sessions.append({'day': day, 'full_path': full_path, 'name': tail})
@@ -70,19 +78,25 @@ def parse_args():
                         choices=WEEKDAYS,
                         required=False,
                         default=WEEKDAYS[0],
-                        help='Directory containing programmed routines')
+                        help=f'Directory containing programmed routines. Default: {WEEKDAYS[0]}')
     parser.add_argument('-c',
                         '--count',
                         type=int,
                         required=False,
-                        default=30,
-                        help='Number of sessions')
+                        default=SESSIONS_COUNT,
+                        help=f'Number of sessions. Default: {SESSIONS_COUNT}')
     parser.add_argument('-s',
                         '--step',
                         type=int,
                         required=False,
-                        default=0,
-                        help='Training sequence')
+                        default=SESSIONS_STEP,
+                        help=f'Training sequence. Default: {SESSIONS_STEP}')
+    parser.add_argument('-o',
+                        '--days-off',
+                        type=int,
+                        required=False,
+                        default=SESSIONS_DAYS_OFF,
+                        help=f'Number of days without training. Default: {SESSIONS_DAYS_OFF}')
     parser.add_argument('-y',
                         '--yes',
                         action='store_true',
@@ -103,6 +117,7 @@ def main():
         arg_first_day = args.first_day
         arg_count = args.count
         arg_step = args.step
+        arg_days_off = args.days_off
         arg_yes = args.yes
         arg_verbose = args.verbose
 
@@ -112,9 +127,11 @@ def main():
         #     '/media/dev/cbc809ad-b091-4a86-9ac1-410e18469ead/media/entrenamiento/[Ejercicios] Fausto Murillo/3.abdominales/'
         # ]
         # arg_dir_output = '/media/dev/cbc809ad-b091-4a86-9ac1-410e18469ead/media/entrenamiento/Mis rutinas/dev/'
-        # arg_count = 1
-        # arg_step = 4
-        # arg_yes = True
+        # arg_first_day = 'Sunday'
+        # arg_count = 30
+        # arg_step = 3
+        # arg_days_off = 1
+        # arg_yes = False
         # arg_verbose = True
 
         if arg_verbose:
@@ -135,8 +152,15 @@ def main():
         if arg_step and arg_step < 1:
             raise ValueError('The training sequence has to be greater than or equal to 1')
 
+        if arg_days_off and arg_days_off < 1:
+            raise ValueError('At least 1 day without training is necessary')
+
         first_day = WEEKDAYS.index(arg_first_day)
-        sessions = sequence(arg_dir_routines, arg_count, first_day, arg_step)
+        sessions = sequence(arg_dir_routines,
+                            count=arg_count,
+                            first_day=first_day,
+                            days_off=arg_days_off,
+                            step=arg_step)
         sessions_tab = [(i + 1, sessions[i]['day'], sessions[i]['name']) for i in range(len(sessions))]
 
         print('\nTraining Routine Sessions')
@@ -154,7 +178,7 @@ def main():
             _copy(sessions, arg_dir_output, lambda file_name_dst: print(file_name_dst))
             print('\nRoutines successfully copied!')
         elif resp == KeyResp.NO.value:
-            sys.exit()  # sys.exit('Application closed by the user')
+            sys.exit()
         else:
             raise ValueError(f'Only answers ({KeyResp.YES.value}/{KeyResp.NO.value}) are allowed')
     except Exception as err:

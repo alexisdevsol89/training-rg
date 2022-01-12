@@ -13,3 +13,7 @@ WEEKDAYS = (
     'Friday',
     'Saturday'
 )
+
+SESSIONS_COUNT = 30
+SESSIONS_DAYS_OFF = 1
+SESSIONS_STEP = 0
