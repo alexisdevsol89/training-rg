@@ -6,26 +6,28 @@ import sys
 import argparse
 import logging
 
+from datetime import datetime, timedelta
+
 from collections import deque
 from random import Random
 
 from shutil import copy2
 from tabulate import tabulate
 
-from training_rg.classifiers import WeekDay, KeyResp
-from training_rg.constants import WEEKDAYS, SESSIONS_COUNT, SESSIONS_DAYS_OFF, SESSIONS_STEP
+from training_rg.classifiers import KeyResp
+from training_rg.constants import SESSIONS_COUNT, SESSIONS_DAYS_OFF, SESSIONS_STEP
 
 from training_rg.logger import logger
 
 
-def sequence(routines, count=30, first_day=WeekDay.MONDAY.value, days_off=1, step=0):
+def sequence(routines, count=30, date=datetime.now().date(), days_off=1, step=0):
     """
     La idea es dada una lista, ordenada, de directorios con rutinas,
     generar cierta cantidad de sesiones, de entrenamiento, con determinados
     dias de descanso y a ciertos intervalos
     :param routines: Lista de listas de rutinas de entrenamiento
     :param count: Cantidad de sesiones
-    :param first_day: Primer dia de la semana a considerar
+    :param date: Fecha de inicial
     :param days_off: Dias de descanso
     :param step: Intervalos de entrenamiento
     :return: list de sesiones
@@ -40,16 +42,18 @@ def sequence(routines, count=30, first_day=WeekDay.MONDAY.value, days_off=1, ste
     j = 0
     for b in range(0, count, step + days_off):
         for day_i in range(b, b + step):
-            day = WEEKDAYS[(first_day + day_i) % len(WEEKDAYS)]
+            _date = date + timedelta(days=day_i)
             full_path = r.choice(routines[j % len(routines)])
             head, tail = os.path.split(full_path)
-            sessions.append({'day': day, 'full_path': full_path, 'name': tail})
+            sessions.append({'date': _date, 'full_path': full_path, 'name': tail})
             j += 1
 
     return sessions
 
 
 def parse_args():
+    today = datetime.now().date().strftime('%Y-%m-%d')
+
     parser = argparse.ArgumentParser(prog='trg-seq',
                                      description='Generates training routines consecutively, with rest in between')
 
@@ -69,11 +73,11 @@ def parse_args():
     parser.add_argument('--dir-output',
                         required=True,
                         help='Directory containing programmed routines')
-    parser.add_argument('--first-day',
-                        choices=WEEKDAYS,
+    parser.add_argument('-d',
+                        '--date',
                         required=False,
-                        default=WEEKDAYS[0],
-                        help=f'Directory containing programmed routines. Default: {WEEKDAYS[0]}')
+                        default=today,
+                        help=f'Initial date for training plan. Default: {today}')
     parser.add_argument('-c',
                         '--count',
                         type=int,
@@ -109,7 +113,7 @@ def main():
         args = parse_args()
         arg_routines = args.routines
         arg_dir_output = args.dir_output
-        arg_first_day = args.first_day
+        arg_date = args.date
         arg_count = args.count
         arg_step = args.step
         arg_days_off = args.days_off
@@ -117,11 +121,11 @@ def main():
         arg_verbose = args.verbose
 
         # arg_routines = 'routines.txt'
-        # arg_dir_output = '/media/dev/cbc809ad-b091-4a86-9ac1-410e18469ead/media/entrenamiento/Mis rutinas/dev1/'
-        # arg_first_day = 'Sunday'
-        # arg_count = 30
-        # arg_step = 3
-        # arg_days_off = 1
+        # arg_dir_output = '/media/dev/cbc809ad-b091-4a86-9ac1-410e18469ead/media/entrenamiento/tmp/'
+        # arg_date = '2022-02-01'
+        # arg_count = SESSIONS_COUNT
+        # arg_step = SESSIONS_STEP
+        # arg_days_off = SESSIONS_DAYS_OFF
         # arg_yes = False
         # arg_verbose = True
 
@@ -129,6 +133,11 @@ def main():
             ch = logging.StreamHandler()
             ch.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
             logger.addHandler(ch)
+
+        try:
+            arg_date = datetime.strptime(arg_date, '%Y-%m-%d').date()
+        except ValueError:
+            raise ValueError(f"The date '{arg_date}' does not match the format '%Y-%m-%d'")
 
         routines = []
         if not os.path.exists(arg_routines):
@@ -157,17 +166,16 @@ def main():
         if arg_days_off and arg_days_off < 1:
             raise ValueError('At least 1 day without training is necessary')
 
-        first_day = WEEKDAYS.index(arg_first_day)
         sessions = sequence(routines,
                             count=arg_count,
-                            first_day=first_day,
+                            date=arg_date,
                             days_off=arg_days_off,
                             step=arg_step)
-        sessions_tab = [(i + 1, sessions[i]['day'], sessions[i]['name']) for i in range(len(sessions))]
+        sessions_tab = [(i + 1, sessions[i]['date'], sessions[i]['name']) for i in range(len(sessions))]
 
         print('\nTraining Routine Sessions')
         print('=========================')
-        print(tabulate(sessions_tab, headers=('#', 'Day', 'Routine')) + '\n')
+        print(tabulate(sessions_tab, headers=('#', 'Date', 'Routine')) + '\n')
 
         if not arg_yes:
             resp = _wait_resp('Would you like to copy the routines?')
@@ -217,8 +225,9 @@ def _copy(sessions, to_dir, callback=None):
     copied = []
 
     for i in range(len(sessions)):
+        date = sessions[i]['date'].strftime('%Y-%m-%d')
         src = sessions[i]['full_path']
-        dst = os.path.join(to_dir, f"{i + 1}.{sessions[i]['day']} - {sessions[i]['name']}")
+        dst = os.path.join(to_dir, f"{i + 1}.[{date}] {sessions[i]['name']}")
         copy2(src, dst)
         if callback:
             head, tail = os.path.split(dst)
