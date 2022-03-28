@@ -1,7 +1,7 @@
 __title__ = 'training_rg'
 __description__ = 'Training routine generator'
 __url__ = 'https://github.com/alexisdevsol89/training_rg'
-__version__ = '2.0.0'
+__version__ = '2.1.0'
 __author__ = 'Alexis Torres Valdes'
 __author_email__ = 'alexisdevsol@gmail.com'
 __credits__ = ['Alexis Torres Valdes']

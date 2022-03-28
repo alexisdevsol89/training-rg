@@ -12,6 +12,8 @@ from collections import deque
 from random import Random
 
 from shutil import copy2
+
+from sortedcontainers import SortedList
 from tabulate import tabulate
 
 from training_rg.classifiers import KeyResp
@@ -38,7 +40,6 @@ def sequence(routines, count=30, date=datetime.now().date(), days_off=1, step=0)
     sessions = []
 
     r = Random()
-
     j = 0
     for b in range(0, count, step + days_off):
         for day_i in range(b, b + step):
@@ -46,6 +47,7 @@ def sequence(routines, count=30, date=datetime.now().date(), days_off=1, step=0)
             full_path = r.choice(routines[j % len(routines)])
             head, tail = os.path.split(full_path)
             sessions.append({'date': _date, 'full_path': full_path, 'name': tail})
+            routines[j % len(routines)].remove(full_path)
             j += 1
 
     return sessions
@@ -121,8 +123,8 @@ def main():
         arg_verbose = args.verbose
 
         # arg_routines = 'routines.txt'
-        # arg_dir_output = '/media/dev/cbc809ad-b091-4a86-9ac1-410e18469ead/media/entrenamiento/tmp/'
-        # arg_date = '2022-02-01'
+        # arg_dir_output = '/media/dev/cbc809ad-b091-4a86-9ac1-410e18469ead/media/entrenamiento/Mis rutinas [22-Abr]'
+        # arg_date = '2022-04-01'
         # arg_count = SESSIONS_COUNT
         # arg_step = SESSIONS_STEP
         # arg_days_off = SESSIONS_DAYS_OFF
